@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 )
 
@@ -30,7 +31,16 @@ func HandleCommand(command []string, conn net.Conn) {
 		if len(command) < 3 {
 			conn.Write([]byte("-ERR wrong number of arguments for 'SET'\r\n"))
 		} else {
-			store.Set(command[1], command[2])
+			key := command[1]
+			value := command[2]
+			px := 0
+
+			if len(command) >= 5 && strings.ToUpper(command[3]) == "PX" {
+				if pxVal, err := strconv.Atoi(command[4]); err == nil {
+					px = pxVal
+				}
+			}
+			store.Set(key, value, px)
 			conn.Write([]byte("+OK\r\n"))
 		}
 	case "GET":
