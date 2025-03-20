@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/binary"
 	"fmt"
+	"hash/crc64"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,4 +96,64 @@ func readSize(file *os.File) (int, error) {
 		return int(binary.BigEndian.Uint32(sizeBytes[:])), nil
 	}
 	return 0, fmt.Errorf("invalid size encoding")
+}
+
+func SaveRDB() error {
+	rdbPath := filepath.Join(ServerConfig.Dir, ServerConfig.DBFilename)
+	file, err := os.Create(rdbPath)
+	if err != nil {
+		return fmt.Errorf("failed to create RDB file: %v", err)
+	}
+	defer file.Close()
+
+	// 1. Write the header
+	file.Write([]byte("REDIS0011"))
+
+	// 2. Write metadata
+	writeMetadata(file, "redis-ver", "6.0.16")
+
+	// 3. Write the database section
+	file.Write([]byte{0xFE, 0x00})                        // Database selector (DB 0)
+	file.Write([]byte{0xFB, byte(len(store.data)), 0x00}) // Hash table sizes
+
+	// 4. Write key-value pairs
+	for key, value := range store.data {
+		file.Write([]byte{0x00}) // String type
+		writeString(file, key)
+		writeString(file, value)
+	}
+
+	// 5. Write EOF marker and checksum
+	file.Write([]byte{0xFF}) // End of file
+	writeChecksum(file)
+
+	return nil
+}
+
+// writeMetadata writes a metadata key-value pair
+func writeMetadata(file *os.File, key, value string) {
+	file.Write([]byte{0xFA}) // Metadata section
+	writeString(file, key)
+	writeString(file, value)
+}
+
+// writeString writes a size-encoded string
+func writeString(file *os.File, str string) {
+	size := len(str)
+	if size <= 63 {
+		file.Write([]byte{byte(size)})
+	} else if size <= 16383 {
+		file.Write([]byte{byte(0x40 | (size >> 8)), byte(size & 0xFF)})
+	} else {
+		file.Write([]byte{0x80, byte(size >> 24), byte(size >> 16), byte(size >> 8), byte(size)})
+	}
+	file.Write([]byte(str))
+}
+
+// writeChecksum writes a CRC64 checksum of the entire file
+func writeChecksum(file *os.File) {
+	file.Seek(0, 0)
+	data, _ := os.ReadFile(file.Name())
+	crc := crc64.Checksum(data, crc64.MakeTable(crc64.ISO))
+	binary.Write(file, binary.LittleEndian, crc)
 }

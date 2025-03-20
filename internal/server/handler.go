@@ -88,6 +88,13 @@ func HandleCommand(command []string, conn net.Conn) {
 			}
 			conn.Write([]byte(resp))
 		}
+	case "SAVE":
+		err := SaveRDB()
+		if err != nil {
+			conn.Write([]byte(fmt.Sprintf("-ERR %s\r\n", err)))
+		} else {
+			conn.Write([]byte("+OK\r\n"))
+		}
 	default:
 		conn.Write([]byte("-ERR unknown command\r\n"))
 	}
