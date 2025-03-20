@@ -12,7 +12,6 @@ const port = ":6379"
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-
 	reader := bufio.NewReader(conn)
 
 	for {
@@ -24,12 +23,23 @@ func handleConnection(conn net.Conn) {
 		}
 
 		// Trim whitespace and print received message
-		cmd := strings.TrimSpace(msg)
-		logger.Logger.Println("Received command:", cmd)
+		cmds := strings.Split(strings.TrimSpace(msg), "\n")
 
-		// Echo back response
-		response := "+PONG\r\n"
-		conn.Write([]byte(response))
+		for _, cmd := range cmds {
+			cmd = strings.TrimSpace(cmd)
+			if cmd == "" {
+				continue
+			}
+
+			logger.Logger.Println("Received command:", cmd)
+
+			response := "+PONG\r\n"
+			_, err = conn.Write([]byte(response))
+			if err != nil {
+				logger.Logger.Println("Error writing response:", err)
+				return
+			}
+		}
 	}
 }
 
