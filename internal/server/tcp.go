@@ -3,9 +3,9 @@ package server
 import (
 	"bufio"
 	"net"
-	"strings"
 
 	"github.com/react-picasso/redigo/internal/logger"
+	"github.com/react-picasso/redigo/internal/resp"
 )
 
 const port = ":6379"
@@ -15,31 +15,15 @@ func handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 
 	for {
-		// Read client input
-		msg, err := reader.ReadString('\n')
+		// Parse RESP command
+		command, err := resp.ParseRESP(reader)
 		if err != nil {
-			logger.Logger.Println("Client disconnected")
+			logger.Logger.Println("Client disconnected or invalid data:", err)
 			return
 		}
 
-		// Trim whitespace and print received message
-		cmds := strings.Split(strings.TrimSpace(msg), "\n")
-
-		for _, cmd := range cmds {
-			cmd = strings.TrimSpace(cmd)
-			if cmd == "" {
-				continue
-			}
-
-			logger.Logger.Println("Received command:", cmd)
-
-			response := "+PONG\r\n"
-			_, err = conn.Write([]byte(response))
-			if err != nil {
-				logger.Logger.Println("Error writing response:", err)
-				return
-			}
-		}
+		logger.Logger.Println("Received command:", command)
+		HandleCommand(command, conn)
 	}
 }
 
