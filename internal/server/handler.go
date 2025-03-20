@@ -55,8 +55,40 @@ func HandleCommand(command []string, conn net.Conn) {
 				conn.Write([]byte(response))
 			}
 		}
+	case "CONFIG":
+		if len(command) < 3 || strings.ToUpper(command[1]) != "GET" {
+			conn.Write([]byte("-ERR invalid CONFIG command\r\n"))
+		} else {
+			param := strings.ToLower(command[2])
+			var key, value string
+
+			switch param {
+			case "dir":
+				key = "dir"
+				value = ServerConfig.Dir
+			case "dbfilename":
+				key = "dbfilename"
+				value = ServerConfig.DBFilename
+			default:
+				conn.Write([]byte("$-1\r\n")) // Null bulk string for unknown config keys
+				return
+			}
+
+			response := fmt.Sprintf("*2\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n", len(key), key, len(value), value)
+			conn.Write([]byte(response))
+		}
+	case "KEYS":
+		if len(command) < 2 || command[1] != "*" {
+			conn.Write([]byte("-ERR invalid KEYS pattern\r\n"))
+		} else {
+			keys := store.GetAllKeys()
+			resp := fmt.Sprintf("*%d\r\n", len(keys))
+			for _, key := range keys {
+				resp += fmt.Sprintf("$%d\r\n%s\r\n", len(key), key)
+			}
+			conn.Write([]byte(resp))
+		}
 	default:
 		conn.Write([]byte("-ERR unknown command\r\n"))
-		conn.Write([]byte("+OK\r\n"))
 	}
 }

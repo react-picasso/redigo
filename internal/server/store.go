@@ -57,3 +57,14 @@ func (s *KVStore) Get(key string) (string, bool) {
 	val, exists := s.data[key]
 	return val, exists
 }
+
+func (s *KVStore) GetAllKeys() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	keys := make([]string, 0, len(s.data))
+	for k := range s.data {
+		keys = append(keys, k)
+	}
+	return keys
+}
